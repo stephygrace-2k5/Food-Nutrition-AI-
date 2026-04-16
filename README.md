@@ -5,6 +5,51 @@ This project is an advanced version of the Food Nutrition AI system that uses Na
 
 This version uses a **large dataset of 50,000 food records**, which improves model accuracy but increases loading time.
 
+## 🔁 Previous Version (Smaller Dataset)
+
+This project is an extended version of our earlier implementation:
+
+👉 GitHub Repository:  
+https://github.com/stephygrace-2k5/Food-Nutrition-AI.git
+
+### 📊 Details of Previous Version
+- Dataset size: **2,395 records**
+- Faster loading time
+- Same system architecture and features
+
+### 📂 Additional Resources (Available in Previous Version)
+The previous repository also includes:
+- 📊 PPT Presentation  
+- 📄 Conference Paper  
+- 📘 Word Document  
+
+👉 These documents explain the complete system using the smaller dataset.
+
+--
+
+## ⚡ Current Version (50K Dataset)
+
+This version expands the dataset to **50,000 records**, which improves:
+- Model performance
+- Prediction accuracy
+- Data coverage
+
+However:
+
+⏳ **Initial loading may take 20–30+ minutes**  
+due to large-scale data processing and NLP model building.
+
+---
+
+## 🧠 Note
+
+Both versions use the same:
+- Architecture
+- AI models
+- Workflow
+
+👉 The only difference is **dataset size (2K vs 50K)**.
+
 ---
 
 ## ⚠️ Important Note (Loading Time)
