@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🍎 Food Nutrition AI</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --primary: #2196F3; --primary-dark: #1565C0; --success: #4CAF50;
+      --warning: #FF9800; --danger: #E91E63; --purple: #9C27B0;
+      --bg: #0f1117; --card: #1a1d2e; --card2: #232640;
+      --text: #e8eaf6; --muted: #9e9eb8; --border: #2d3057;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* NAV */
+    nav { background: var(--card); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; gap: 8px; height: 56px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 12px #0008; }
+    .nav-logo { font-size: 1.3rem; font-weight: 700; color: var(--primary); margin-right: 16px; white-space: nowrap; }
+    .nav-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px 14px; border-radius: 8px; font-size: 0.88rem; transition: all .2s; }
+    .nav-btn:hover, .nav-btn.active { background: var(--primary); color: #fff; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff5722; animation: pulse 1.5s infinite; margin-left: auto; }
+    .status-dot.ready { background: #4caf50; animation: none; }
+    .status-text { font-size: 0.78rem; color: var(--muted); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* LAYOUT */
+    main { max-width: 1400px; margin: 0 auto; padding: 24px 20px; }
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* CARDS */
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+    .card-title { font-size: 1.1rem; font-weight: 600; color: var(--text); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+    /* STATS GRID */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; }
+    .stat-val { font-size: 2rem; font-weight: 700; color: var(--primary); }
+    .stat-lbl { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+
+    /* SEARCH */
+    .search-box { position: relative; margin-bottom: 16px; }
+    .search-input { width: 100%; background: var(--card2); border: 1.5px solid var(--border); border-radius: 10px; color: var(--text); font-size: 1rem; padding: 12px 120px 12px 16px; outline: none; transition: border .2s; }
+    .search-input:focus { border-color: var(--primary); }
+    .search-btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 8px 18px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: background .2s; }
+    .search-btn:hover { background: var(--primary-dark); }
+    .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: var(--card2); border: 1px solid var(--border); border-radius: 8px; z-index: 50; max-height: 240px; overflow-y: auto; }
+    .autocomplete-item { padding: 10px 16px; cursor: pointer; font-size: 0.9rem; border-bottom: 1px solid var(--border); }
+    .autocomplete-item:hover { background: var(--primary); color: #fff; }
+
+    /* NLP hint chips */
+    .hint-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .chip { background: var(--card2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 0.8rem; color: var(--muted); cursor: pointer; transition: all .2s; }
+    .chip:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    /* TABLE */
+    .results-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .results-table th { background: var(--card2); color: var(--muted); font-weight: 600; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+    .results-table td { padding: 9px 12px; border-bottom: 1px solid var(--border)20; }
+    .results-table tr:hover { background: var(--card2)80; }
+    .results-table tr:hover td { cursor: pointer; }
+    .score-badge { display: inline-block; background: var(--primary)22; color: var(--primary); border-radius: 6px; padding: 2px 8px; font-weight: 600; font-size: 0.82rem; }
+    .cat-badge { display: inline-block; border-radius: 6px; padding: 2px 8px; font-size: 0.78rem; font-weight: 600; }
+    .cat-low { background: #4caf5022; color: #4caf50; }
+    .cat-med { background: #2196f322; color: #2196f3; }
+    .cat-high { background: #ff980022; color: #ff9800; }
+    .cat-vhigh { background: #e91e6322; color: #e91e63; }
+
+    /* FOOD DETAIL MODAL */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: #000a; z-index: 200; justify-content: center; align-items: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--card); border: 1px solid var(--border); border-radius: 16px; width: 90%; max-width: 820px; max-height: 88vh; overflow-y: auto; padding: 28px; position: relative; }
+    .modal-close { position: absolute; top: 14px; right: 18px; background: var(--card2); border: none; color: var(--text); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.1rem; }
+    .modal-food-name { font-size: 1.5rem; font-weight: 700; text-transform: capitalize; margin-bottom: 4px; }
+    .modal-meta { color: var(--muted); font-size: 0.88rem; margin-bottom: 20px; }
+    .nutrient-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
+    .nutrient-card { background: var(--card2); border-radius: 8px; padding: 12px; text-align: center; }
+    .nutrient-val { font-size: 1.4rem; font-weight: 700; }
+    .nutrient-lbl { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
+    /* CHARTS */
+    .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+    .chart-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .chart-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 12px; color: var(--text); }
+    canvas { max-height: 280px; }
+
+    /* PREDICT FORM */
+    .predict-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
+    .form-group input { width: 100%; background: var(--card2); border: 1.5px solid var(--border); border-radius: 8px; color: var(--text); padding: 9px 12px; font-size: 0.9rem; outline: none; transition: border .2s; }
+    .form-group input:focus { border-color: var(--primary); }
+    .predict-btn { background: var(--success); color: #fff; border: none; border-radius: 10px; padding: 12px 32px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: opacity .2s; }
+    .predict-btn:hover { opacity: 0.88; }
+    .predict-result { background: var(--card2); border-radius: 10px; padding: 20px; margin-top: 16px; display: none; }
+    .predict-result.show { display: block; }
+    .predict-cal { font-size: 2.8rem; font-weight: 800; color: var(--warning); }
+    .predict-cat { font-size: 1.1rem; color: var(--muted); margin-top: 4px; }
+
+    /* EDA plots gallery */
+    .plots-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+    .plot-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; cursor: pointer; transition: transform .2s; }
+    .plot-card:hover { transform: scale(1.02); }
+    .plot-card img { width: 100%; display: block; }
+    .plot-caption { padding: 8px 12px; font-size: 0.82rem; color: var(--muted); }
+
+    /* MODEL results */
+    .model-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .model-table th { background: var(--card2); color: var(--muted); padding: 9px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+    .model-table td { padding: 8px 14px; border-bottom: 1px solid var(--border)30; }
+    .model-table tr:first-child td { background: var(--primary)15; }
+    .bar-cell { display: flex; align-items: center; gap: 8px; }
+    .mini-bar { height: 8px; border-radius: 4px; background: var(--primary); }
+
+    /* COMPARE */
+    .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+    .compare-col { background: var(--card2); border-radius: 10px; padding: 16px; }
+    .compare-food-name { font-size: 1.1rem; font-weight: 700; text-transform: capitalize; margin-bottom: 12px; }
+    .compare-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border)30; font-size: 0.88rem; }
+    .compare-row .val { font-weight: 600; color: var(--primary); }
+    .compare-row .val.better { color: var(--success); }
+    .compare-row .val.worse { color: var(--danger); }
+
+    /* TABS */
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .tab { background: none; border: none; color: var(--muted); padding: 10px 18px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 0.9rem; transition: all .2s; }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    /* LOADING */
+    .loading-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 500; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
+    .loading-overlay.hidden { display: none; }
+    .spinner { width: 52px; height: 52px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-title { font-size: 1.6rem; font-weight: 700; color: var(--text); }
+    .loading-msg { color: var(--muted); font-size: 0.95rem; }
+    .loading-log { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; max-width: 480px; width: 90%; font-family: monospace; font-size: 0.82rem; color: #7cfc00; min-height: 80px; }
+
+    /* IMAGE MODAL */
+    .img-modal { display: none; position: fixed; inset: 0; background: #000c; z-index: 300; justify-content: center; align-items: center; }
+    .img-modal.open { display: flex; }
+    .img-modal img { max-width: 92vw; max-height: 90vh; border-radius: 10px; box-shadow: 0 8px 40px #000a; }
+    .img-modal-close { position: fixed; top: 20px; right: 24px; color: #fff; background: #0008; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; }
+
+    @media(max-width: 600px) {
+      .compare-grid { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: repeat(2,1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-title">🍎 Food Nutrition AI</div>
+  <div class="loading-msg" id="loadingMsg">Initializing — Loading data & training models...</div>
+  <div class="loading-log" id="loadingLog">Starting up...</div>
+</div>
+
+<!-- Nav -->
+<nav>
+  <span class="nav-logo">🍎 Food Nutrition AI</span>
+  <button class="nav-btn active" onclick="showPage('home',this)">🏠 Home</button>
+  <button class="nav-btn" onclick="showPage('search',this)">🔍 NLP Search</button>
+  <button class="nav-btn" onclick="showPage('predict',this)">🧠 Predict</button>
+  <button class="nav-btn" onclick="showPage('compare',this)">⚖️ Compare</button>
+  <button class="nav-btn" onclick="showPage('eda',this)">📊 EDA</button>
+  <button class="nav-btn" onclick="showPage('models',this)">🤖 ML Models</button>
+  <button class="nav-btn" onclick="showPage('plots',this)">🖼️ Plots Gallery</button>
+  <div class="status-dot" id="statusDot"></div>
+  <span class="status-text" id="statusText">Loading...</span>
+</nav>
+
+<main>
+
+<!-- HOME PAGE -->
+<div class="page active" id="page-home">
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card"><div class="stat-val" id="s-foods">—</div><div class="stat-lbl">Total Foods</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-groups">—</div><div class="stat-lbl">Food Groups</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-features">—</div><div class="stat-lbl">ML Features</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-calories">—</div><div class="stat-lbl">Avg Calories</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-protein">—</div><div class="stat-lbl">Avg Protein (g)</div></div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-title">📊 Avg Macronutrients (per 100g)</div>
+      <canvas id="macroChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">🍽️ Caloric Category Distribution</div>
+      <canvas id="catChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">🏷️ Avg Calories by Group</div>
+      <canvas id="groupCalChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">💪 Avg Protein by Group</div>
+      <canvas id="groupProtChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">🏆 Top 10 by Nutrition Density</div>
+      <canvas id="topNDChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">❤️ Top 10 by Health Score</div>
+      <canvas id="topHSChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- SEARCH PAGE -->
+<div class="page" id="page-search">
+  <div class="card">
+    <div class="card-title">🔍 NLP Semantic Food Search</div>
+    <p style="color:var(--muted);font-size:.88rem;margin-bottom:12px;">
+      Search using natural language — try <em>"high protein low fat"</em>, <em>"vitamin C rich fruit"</em>, or just a food name.
+    </p>
+    <div class="hint-chips" id="hintChips">
+      <span class="chip" onclick="doSearch('high protein low calorie')">💪 High protein low calorie</span>
+      <span class="chip" onclick="doSearch('rich in vitamin C')">🍊 Rich in Vitamin C</span>
+      <span class="chip" onclick="doSearch('low carb keto')">🥑 Low carb / Keto</span>
+      <span class="chip" onclick="doSearch('high fiber food')">🌾 High fiber</span>
+      <span class="chip" onclick="doSearch('iron rich food')">🩸 Iron rich</span>
+      <span class="chip" onclick="doSearch('calcium dairy')">🥛 Calcium source</span>
+      <span class="chip" onclick="doSearch('sugar free low sugar')">🚫 Sugar free</span>
+      <span class="chip" onclick="doSearch('omega fatty acids')">🐟 Omega fats</span>
+    </div>
+    <div class="search-box">
+      <input class="search-input" id="searchInput" placeholder="e.g. high protein low fat food..." 
+             oninput="autocomplete()" onkeydown="if(event.key==='Enter')doSearch()"/>
+      <button class="search-btn" onclick="doSearch()">Search</button>
+      <div class="autocomplete-list" id="autocompleteList" style="display:none"></div>
+    </div>
+    <div id="searchResults"></div>
+  </div>
+</div>
+
+<!-- PREDICT PAGE -->
+<div class="page" id="page-predict">
+  <div class="card">
+    <div class="card-title">🧠 AI Caloric Value Predictor</div>
+    <p style="color:var(--muted);font-size:.88rem;margin-bottom:16px;">
+      Enter nutritional values (per 100g) and our ML models will predict the caloric content and food category.
+    </p>
+
+    <div style="margin-bottom:12px;">
+      <button class="chip" style="margin:3px" onclick="fillSample('chicken')">🍗 Sample: Chicken</button>
+      <button class="chip" style="margin:3px" onclick="fillSample('apple')">🍎 Sample: Apple</button>
+      <button class="chip" style="margin:3px" onclick="fillSample('butter')">🧈 Sample: Butter</button>
+      <button class="chip" style="margin:3px" onclick="fillSample('clear')">🗑️ Clear</button>
+    </div>
+
+    <div class="predict-grid">
+      <div class="form-group"><label>Fat (g)</label><input type="number" id="p-Fat" placeholder="0" min="0" step="0.1"/></div>
+      <div class="form-group"><label>Protein (g)</label><input type="number" id="p-Protein" placeholder="0" min="0" step="0.1"/></div>
+      <div class="form-group"><label>Carbohydrates (g)</label><input type="number" id="p-Carbohydrates" placeholder="0" min="0" step="0.1"/></div>
+      <div class="form-group"><label>Sugars (g)</label><input type="number" id="p-Sugars" placeholder="0" min="0" step="0.1"/></div>
+      <div class="form-group"><label>Dietary Fiber (g)</label><input type="number" id="p-Dietary Fiber" placeholder="0" min="0" step="0.1"/></div>
+      <div class="form-group"><label>Saturated Fats (g)</label><input type="number" id="p-Saturated Fats" placeholder="0" min="0" step="0.1"/></div>
+      <div class="form-group"><label>Sodium (mg)</label><input type="number" id="p-Sodium" placeholder="0" min="0" step="1"/></div>
+      <div class="form-group"><label>Water (g)</label><input type="number" id="p-Water" placeholder="0" min="0" step="0.1"/></div>
+      <div class="form-group"><label>Vitamin C (mg)</label><input type="number" id="p-Vitamin C" placeholder="0" min="0" step="0.1"/></div>
+      <div class="form-group"><label>Iron (mg)</label><input type="number" id="p-Iron" placeholder="0" min="0" step="0.01"/></div>
+      <div class="form-group"><label>Calcium (mg)</label><input type="number" id="p-Calcium" placeholder="0" min="0" step="0.1"/></div>
+      <div class="form-group"><label>Nutrition Density</label><input type="number" id="p-Nutrition Density" placeholder="0" min="0" step="0.01"/></div>
+    </div>
+    <button class="predict-btn" onclick="runPredict()">🤖 Predict Caloric Value</button>
+    <div class="predict-result" id="predictResult">
+      <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:center">
+        <div>
+          <div style="font-size:.85rem;color:var(--muted)">Predicted Calories</div>
+          <div class="predict-cal" id="predictCalVal">—</div>
+          <div style="font-size:.8rem;color:var(--muted)">kcal per 100g</div>
+        </div>
+        <div>
+          <div style="font-size:.85rem;color:var(--muted)">Category</div>
+          <div style="font-size:1.3rem;font-weight:700;color:var(--success)" id="predictCatVal">—</div>
+        </div>
+        <div>
+          <div style="font-size:.85rem;color:var(--muted)">Confidence</div>
+          <div style="font-size:1.3rem;font-weight:700;color:var(--purple)" id="predictConfVal">—</div>
+        </div>
+        <div>
+          <div style="font-size:.85rem;color:var(--muted)">Models Used</div>
+          <div style="font-size:.88rem;color:var(--primary)" id="predictModels">—</div>
+        </div>
+      </div>
+      <canvas id="predictChart" style="max-height:200px;margin-top:16px"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- COMPARE PAGE -->
+<div class="page" id="page-compare">
+  <div class="card">
+    <div class="card-title">⚖️ Side-by-Side Food Comparison</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+      <div style="flex:1;min-width:200px">
+        <div class="search-box">
+          <input class="search-input" id="cmpInput1" placeholder="Food 1 (e.g. chicken breast)" oninput="cmpAC(1)" onkeydown="if(event.key==='Enter')runCompare()"/>
+          <div class="autocomplete-list" id="cmpAC1" style="display:none"></div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:200px">
+        <div class="search-box">
+          <input class="search-input" id="cmpInput2" placeholder="Food 2 (e.g. broccoli)" oninput="cmpAC(2)" onkeydown="if(event.key==='Enter')runCompare()"/>
+          <div class="autocomplete-list" id="cmpAC2" style="display:none"></div>
+        </div>
+      </div>
+      <button class="search-btn" style="position:static;transform:none;height:48px;align-self:flex-start" onclick="runCompare()">Compare</button>
+    </div>
+    <div id="compareResults"></div>
+  </div>
+</div>
+
+<!-- EDA PAGE -->
+<div class="page" id="page-eda">
+  <div class="tabs">
+    <button class="tab active" onclick="showEdaTab('overview',this)">📊 Overview</button>
+    <button class="tab" onclick="showEdaTab('vitamins',this)">💊 Vitamins</button>
+    <button class="tab" onclick="showEdaTab('minerals',this)">⚗️ Minerals</button>
+    <button class="tab" onclick="showEdaTab('top',this)">🏆 Top Foods</button>
+  </div>
+  <div id="eda-overview" class="eda-tab">
+    <div class="chart-grid" id="edaCharts"></div>
+  </div>
+  <div id="eda-vitamins" class="eda-tab" style="display:none">
+    <div class="chart-card"><div class="chart-title">Average Vitamin Content per 100g</div><canvas id="vitaminChart"></canvas></div>
+  </div>
+  <div id="eda-minerals" class="eda-tab" style="display:none">
+    <div class="chart-card"><div class="chart-title">Average Mineral Content per 100g</div><canvas id="mineralChart"></canvas></div>
+  </div>
+  <div id="eda-top" class="eda-tab" style="display:none">
+    <div class="chart-grid">
+      <div class="chart-card"><div class="chart-title">🔥 Top 10 Highest Calorie Foods</div><canvas id="topCalChart"></canvas></div>
+      <div class="chart-card"><div class="chart-title">💪 Top 10 Highest Protein Foods</div><canvas id="topProtChart2"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODELS PAGE -->
+<div class="page" id="page-models">
+  <div class="tabs">
+    <button class="tab active" onclick="showModelTab('reg',this)">📈 Regression</button>
+    <button class="tab" onclick="showModelTab('clf',this)">🏷️ Classification</button>
+    <button class="tab" onclick="showModelTab('cluster',this)">🔵 Clustering</button>
+  </div>
+  <div id="model-reg">
+    <div class="card"><div class="card-title">📈 Regression — Predict Caloric Value</div><div id="regTable"></div></div>
+    <div class="chart-grid">
+      <div class="chart-card"><div class="chart-title">R² Score Comparison</div><canvas id="regChart"></canvas></div>
+      <div class="chart-card"><div class="chart-title">RMSE Comparison</div><canvas id="rmseChart"></canvas></div>
+    </div>
+  </div>
+  <div id="model-clf" style="display:none">
+    <div class="card"><div class="card-title">🏷️ Classification — Predict Caloric Category</div><div id="clfTable"></div></div>
+    <div class="chart-card"><div class="chart-title">Accuracy Comparison</div><canvas id="clfChart"></canvas></div>
+  </div>
+  <div id="model-cluster" style="display:none">
+    <div class="card"><div class="card-title">🔵 K-Means Cluster Profiles</div><div id="clusterTable"></div></div>
+    <div class="chart-card" style="max-width:600px"><div class="chart-title">Cluster Nutritional Profiles (Radar)</div><canvas id="clusterRadar"></canvas></div>
+  </div>
+</div>
+
+<!-- PLOTS GALLERY -->
+<div class="page" id="page-plots">
+  <div class="card">
+    <div class="card-title">🖼️ Visualization Gallery</div>
+    <p style="color:var(--muted);font-size:.88rem;margin-bottom:16px">Click any image to enlarge.</p>
+    <div class="plots-grid" id="plotsGrid"></div>
+  </div>
+</div>
+
+</main>
+
+<!-- Food Detail Modal -->
+<div class="modal-overlay" id="foodModal" onclick="if(event.target===this)closeFoodModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeFoodModal()">✕</button>
+    <div class="modal-food-name" id="mFoodName"></div>
+    <div class="modal-meta" id="mFoodMeta"></div>
+    <div class="nutrient-grid" id="mNutrientGrid"></div>
+    <canvas id="mRadarChart" style="max-height:300px"></canvas>
+  </div>
+</div>
+
+<!-- Image modal -->
+<div class="img-modal" id="imgModal" onclick="if(event.target===this||event.target.tagName==='IMG')this.classList.remove('open')">
+  <button class="img-modal-close" onclick="document.getElementById('imgModal').classList.remove('open')">✕</button>
+  <img id="imgModalSrc" src="" alt=""/>
+</div>
+
+<script>
+const COLORS = ['#2196F3','#4CAF50','#FF9800','#E91E63','#9C27B0','#00BCD4','#FF5722','#8BC34A'];
+let edaStats = null, mlResults = null;
+let radarCtx = null;
+let predictChartInstance = null;
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+function pollStatus() {
+  fetch('/api/status').then(r=>r.json()).then(d => {
+    document.getElementById('loadingLog').innerHTML = d.log.map(l=>`> ${l}`).join('<br>');
+    if (d.ready) {
+      document.getElementById('loadingOverlay').classList.add('hidden');
+      document.getElementById('statusDot').classList.add('ready');
+      document.getElementById('statusText').textContent = `${d.stats.total_foods} foods loaded`;
+      populateStats(d.stats);
+      loadEDAStats();
+    } else {
+      setTimeout(pollStatus, 1800);
+    }
+  }).catch(() => setTimeout(pollStatus, 2000));
+}
+pollStatus();
+
+function populateStats(s) {
+  document.getElementById('s-foods').textContent = s.total_foods?.toLocaleString() || '—';
+  document.getElementById('s-groups').textContent = s.num_groups || '—';
+  document.getElementById('s-features').textContent = s.num_features || '—';
+  document.getElementById('s-calories').textContent = s.avg_calories || '—';
+  document.getElementById('s-protein').textContent = s.avg_protein || '—';
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'models' && !mlResults) loadMLResults();
+  if (name === 'plots') loadPlotsGallery();
+}
+
+// ── EDA STATS ─────────────────────────────────────────────────────────────────
+function loadEDAStats() {
+  fetch('/api/eda/stats').then(r=>r.json()).then(data => {
+    edaStats = data;
+    renderHomeCharts(data);
+    renderEdaCharts(data);
+  });
+}
+
+function renderHomeCharts(data) {
+  const macro = data.macro_means || {};
+  makeBarChart('macroChart', Object.keys(macro), Object.values(macro), COLORS);
+  
+  const cats = data.category_counts || {};
+  makeDoughnut('catChart', Object.keys(cats), Object.values(cats));
+  
+  const gc = data.group_avg_calories || {};
+  makeBarChart('groupCalChart', Object.keys(gc), Object.values(gc), COLORS);
+  
+  const gp = data.group_avg_protein || {};
+  makeBarChart('groupProtChart', Object.keys(gp), Object.values(gp), ['#4CAF50','#2196F3','#FF9800','#E91E63','#9C27B0']);
+
+  const nd = data.top_nutrition_density || [];
+  makeHorizBar('topNDChart', nd.map(x=>x.food), nd.map(x=>x['Nutrition Density']), '#FF9800');
+
+  const hs = data.top_health_score || [];
+  makeHorizBar('topHSChart', hs.map(x=>x.food), hs.map(x=>x['Health_Score']), '#E91E63');
+}
+
+function renderEdaCharts(data) {
+  const vit = data.vitamin_means || {};
+  makeHorizBar('vitaminChart', Object.keys(vit), Object.values(vit), '#9C27B0');
+  const min = data.mineral_means || {};
+  makeHorizBar('mineralChart', Object.keys(min), Object.values(min), '#FF9800');
+  
+  const tc = data.top_caloric || [];
+  makeHorizBar('topCalChart', tc.map(x=>x.food), tc.map(x=>x['Caloric Value']), '#E91E63');
+  const tp = data.top_protein || [];
+  makeHorizBar('topProtChart2', tp.map(x=>x.food), tp.map(x=>x['Protein']), '#4CAF50');
+}
+
+// ── CHART HELPERS ─────────────────────────────────────────────────────────────
+function makeBarChart(id, labels, values, colors) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  new Chart(ctx, { type: 'bar', data: {
+    labels, datasets: [{ data: values, backgroundColor: colors || COLORS, borderRadius: 6 }]
+  }, options: { plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#9e9eb8',font:{size:10}}},y:{ticks:{color:'#9e9eb8'}}}, responsive:true, maintainAspectRatio:true }});
+}
+
+function makeHorizBar(id, labels, values, color) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  new Chart(ctx, { type: 'bar', data: {
+    labels, datasets: [{ data: values, backgroundColor: color || '#2196F3', borderRadius: 4 }]
+  }, options: { indexAxis:'y', plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#9e9eb8'}},y:{ticks:{color:'#9e9eb8',font:{size:9}}}}, responsive:true }});
+}
+
+function makeDoughnut(id, labels, values) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  new Chart(ctx, { type: 'doughnut', data: {
+    labels, datasets: [{ data: values, backgroundColor: COLORS, borderWidth: 2, borderColor: '#1a1d2e' }]
+  }, options: { plugins:{legend:{position:'bottom',labels:{color:'#9e9eb8',font:{size:10}}}}, responsive:true }});
+}
+
+function makeRadar(id, labels, datasets) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return null;
+  return new Chart(ctx, { type: 'radar', data: { labels, datasets }, options: {
+    scales:{ r:{ ticks:{color:'#9e9eb8',font:{size:8}}, grid:{color:'#2d305740'}, pointLabels:{color:'#9e9eb8',font:{size:10}} }},
+    plugins:{ legend:{ labels:{ color:'#e8eaf6' } } }, responsive:true
+  }});
+}
+
+// ── SEARCH ────────────────────────────────────────────────────────────────────
+let acTimer = null;
+function autocomplete() {
+  const q = document.getElementById('searchInput').value;
+  clearTimeout(acTimer);
+  if (q.length < 2) { document.getElementById('autocompleteList').style.display='none'; return; }
+  acTimer = setTimeout(() => {
+    fetch(`/api/foods/autocomplete?q=${encodeURIComponent(q)}`).then(r=>r.json()).then(d=>{
+      const list = document.getElementById('autocompleteList');
+      if (!d.suggestions?.length) { list.style.display='none'; return; }
+      list.innerHTML = d.suggestions.map(s=>`<div class="autocomplete-item" onclick="selectFood('${s}')">${s}</div>`).join('');
+      list.style.display='block';
+    });
+  }, 250);
+}
+
+function selectFood(name) {
+  document.getElementById('searchInput').value = name;
+  document.getElementById('autocompleteList').style.display='none';
+  doSearch();
+}
+
+function doSearch(query) {
+  const q = query || document.getElementById('searchInput').value.trim();
+  if (!q) return;
+  document.getElementById('searchInput').value = q;
+  document.getElementById('autocompleteList').style.display='none';
+  document.getElementById('searchResults').innerHTML = '<div style="color:var(--muted);padding:16px">Searching...</div>';
+  fetch(`/api/search?q=${encodeURIComponent(q)}&top_k=15`).then(r=>r.json()).then(data=>{
+    if (!data.results?.length) {
+      document.getElementById('searchResults').innerHTML = '<div style="color:var(--muted);padding:16px">No results found.</div>';
+      return;
+    }
+    const rows = data.results.map(r => {
+      const cat = r['Caloric Category'] || '';
+      const catClass = cat.includes('Very High') ? 'cat-vhigh' : cat.includes('High') ? 'cat-high' : cat.includes('Medium') ? 'cat-med' : 'cat-low';
+      return `<tr onclick="openFoodModal('${r.food?.replace(/'/g,"\\'")}')">
+        <td><strong style="text-transform:capitalize">${r.food||''}</strong></td>
+        <td><span class="score-badge">${r.NLP_Score||0}%</span></td>
+        <td>${r['Caloric Value']?.toFixed?.(1)||'—'}</td>
+        <td>${r.Protein?.toFixed?.(1)||'—'}</td>
+        <td>${r.Fat?.toFixed?.(1)||'—'}</td>
+        <td>${r.Carbohydrates?.toFixed?.(1)||'—'}</td>
+        <td>${r['Dietary Fiber']?.toFixed?.(1)||'—'}</td>
+        <td><span class="cat-badge ${catClass}">${cat}</span></td>
+        <td>${r.Group||'—'}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('searchResults').innerHTML = `
+      <div style="color:var(--muted);font-size:.82rem;margin-bottom:8px">
+        ${data.results.length} results for "<strong style="color:var(--primary)">${data.query}</strong>" — click a row for full details
+      </div>
+      <div style="overflow-x:auto">
+      <table class="results-table">
+        <thead><tr><th>Food</th><th>Match</th><th>Calories</th><th>Protein</th><th>Fat</th><th>Carbs</th><th>Fiber</th><th>Category</th><th>Group</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+  });
+}
+
+// ── FOOD DETAIL MODAL ─────────────────────────────────────────────────────────
+let modalRadar = null;
+function openFoodModal(name) {
+  fetch(`/api/food/${encodeURIComponent(name)}`).then(r=>r.json()).then(d => {
+    if (d.error) return;
+    document.getElementById('mFoodName').textContent = d.food || name;
+    document.getElementById('mFoodMeta').textContent = `${d.Group || ''} • ${d['Caloric Category'] || ''} • Health Score: ${d.Health_Score?.toFixed?.(1) || '—'}`;
+
+    const macros = [
+      {lbl:'Calories', val: d['Caloric Value'], unit:'kcal', color:'#FF9800'},
+      {lbl:'Protein', val: d['Protein'], unit:'g', color:'#4CAF50'},
+      {lbl:'Fat', val: d['Fat'], unit:'g', color:'#E91E63'},
+      {lbl:'Carbs', val: d['Carbohydrates'], unit:'g', color:'#2196F3'},
+      {lbl:'Fiber', val: d['Dietary Fiber'], unit:'g', color:'#9C27B0'},
+      {lbl:'Sugars', val: d['Sugars'], unit:'g', color:'#FF5722'},
+      {lbl:'Sodium', val: d['Sodium'], unit:'mg', color:'#00BCD4'},
+      {lbl:'Water', val: d['Water'], unit:'g', color:'#8BC34A'},
+    ];
+    document.getElementById('mNutrientGrid').innerHTML = macros.map(m=>
+      `<div class="nutrient-card">
+        <div class="nutrient-val" style="color:${m.color}">${m.val?.toFixed?.(1)||'0'}</div>
+        <div class="nutrient-lbl">${m.lbl} (${m.unit})</div>
+      </div>`).join('');
+
+    // Radar chart
+    if (modalRadar) modalRadar.destroy();
+    const radarLabels = ['Protein','Fat','Carbs','Fiber','Vitamin C','Iron','Calcium'];
+    const radarMax = [50, 80, 80, 20, 90, 20, 500];
+    const radarVals = [d.Protein, d.Fat, d.Carbohydrates, d['Dietary Fiber'],
+                       d['Vitamin C'], d.Iron, d.Calcium];
+    const norm = radarVals.map((v,i) => Math.min((v||0)/radarMax[i]*100, 100));
+    modalRadar = makeRadar('mRadarChart', radarLabels, [{
+      label: d.food, data: norm, fill:true,
+      backgroundColor:'rgba(33,150,243,0.15)', borderColor:'#2196F3',
+      pointBackgroundColor:'#2196F3'
+    }]);
+
+    document.getElementById('foodModal').classList.add('open');
+  });
+}
+
+function closeFoodModal() {
+  document.getElementById('foodModal').classList.remove('open');
+}
+
+// ── PREDICT ───────────────────────────────────────────────────────────────────
+const SAMPLES = {
+  chicken: {Fat:3.6, Protein:31, Carbohydrates:0, Sugars:0, 'Dietary Fiber':0, 'Saturated Fats':1, Sodium:74, Water:65, 'Vitamin C':0, Iron:1, Calcium:15, 'Nutrition Density':45},
+  apple:   {Fat:0.2, Protein:0.3, Carbohydrates:14, Sugars:10, 'Dietary Fiber':2.4, 'Saturated Fats':0, Sodium:1, Water:86, 'Vitamin C':8, Iron:0.1, Calcium:6, 'Nutrition Density':22},
+  butter:  {Fat:81, Protein:0.9, Carbohydrates:0.1, Sugars:0.1, 'Dietary Fiber':0, 'Saturated Fats':51, Sodium:11, Water:16, 'Vitamin C':0, Iron:0, Calcium:24, 'Nutrition Density':2},
+};
+
+function fillSample(name) {
+  if (name === 'clear') {
+    document.querySelectorAll('.predict-grid input').forEach(i => i.value = '');
+    return;
+  }
+  const s = SAMPLES[name];
+  for (const [k, v] of Object.entries(s)) {
+    const el = document.getElementById('p-' + k);
+    if (el) el.value = v;
+  }
+}
+
+function runPredict() {
+  const fields = ['Fat','Protein','Carbohydrates','Sugars','Dietary Fiber','Saturated Fats','Sodium','Water','Vitamin C','Iron','Calcium','Nutrition Density'];
+  const data = {};
+  fields.forEach(f => { data[f] = parseFloat(document.getElementById('p-'+f)?.value)||0; });
+  
+  fetch('/api/predict', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(r=>r.json()).then(d => {
+      if (d.error) { alert('Error: ' + d.error); return; }
+      document.getElementById('predictCalVal').textContent = d.caloric_value;
+      document.getElementById('predictCatVal').textContent = d.category;
+      document.getElementById('predictConfVal').textContent = d.confidence + '%';
+      document.getElementById('predictModels').innerHTML = `Reg: ${d.best_reg_model}<br>Clf: ${d.best_clf_model}`;
+      document.getElementById('predictResult').classList.add('show');
+
+      // Mini chart
+      if (predictChartInstance) predictChartInstance.destroy();
+      const ctx = document.getElementById('predictChart');
+      predictChartInstance = new Chart(ctx, { type: 'bar',
+        data: { labels: ['Fat','Protein','Carbs','Fiber','Sugars'],
+          datasets: [{ label: 'Input Values (g)', data: [data.Fat, data.Protein, data.Carbohydrates, data['Dietary Fiber'], data.Sugars],
+            backgroundColor: COLORS, borderRadius: 6 }]
+        },
+        options: { plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#9e9eb8'}},y:{ticks:{color:'#9e9eb8'}}}, responsive:true }
+      });
+    });
+}
+
+// ── COMPARE ───────────────────────────────────────────────────────────────────
+let cmpACTimer = [null, null];
+function cmpAC(n) {
+  const q = document.getElementById('cmpInput'+n).value;
+  clearTimeout(cmpACTimer[n-1]);
+  if (q.length < 2) { document.getElementById('cmpAC'+n).style.display='none'; return; }
+  cmpACTimer[n-1] = setTimeout(() => {
+    fetch(`/api/foods/autocomplete?q=${encodeURIComponent(q)}`).then(r=>r.json()).then(d=>{
+      const list = document.getElementById('cmpAC'+n);
+      if (!d.suggestions?.length) { list.style.display='none'; return; }
+      list.innerHTML = d.suggestions.map(s=>`<div class="autocomplete-item" onclick="cmpSelect(${n},'${s.replace(/'/g,"\\'")}')">${s}</div>`).join('');
+      list.style.display='block';
+    });
+  }, 250);
+}
+
+function cmpSelect(n, name) {
+  document.getElementById('cmpInput'+n).value = name;
+  document.getElementById('cmpAC'+n).style.display='none';
+}
+
+function runCompare() {
+  const f1 = document.getElementById('cmpInput1').value.trim();
+  const f2 = document.getElementById('cmpInput2').value.trim();
+  if (!f1 || !f2) { alert('Please enter two food names.'); return; }
+  
+  fetch('/api/compare', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({food1:f1,food2:f2})})
+    .then(r=>r.json()).then(d=>{
+      if (d.error) { document.getElementById('compareResults').innerHTML = `<div style="color:var(--danger);padding:16px">${d.error}</div>`; return; }
+      const keys = ['Caloric Value','Protein','Fat','Carbohydrates','Dietary Fiber','Sugars','Sodium','Vitamin C','Iron','Calcium','Nutrition Density','Health_Score'];
+      const better = {  // higher is better
+        'Caloric Value': false, 'Fat': false, 'Sugars': false, 'Sodium': false,
+        'Protein': true, 'Dietary Fiber': true, 'Vitamin C': true, 'Iron': true,
+        'Calcium': true, 'Nutrition Density': true, 'Health_Score': true, 'Carbohydrates': null
+      };
+
+      const buildCol = (food, other) => {
+        const rows = keys.map(k=>{
+          const v1 = parseFloat(food[k])||0, v2 = parseFloat(other[k])||0;
+          let cls = '';
+          if (better[k] === true) cls = v1 > v2 ? 'better' : v1 < v2 ? 'worse' : '';
+          if (better[k] === false) cls = v1 < v2 ? 'better' : v1 > v2 ? 'worse' : '';
+          return `<div class="compare-row"><span>${k}</span><span class="val ${cls}">${v1.toFixed(2)}</span></div>`;
+        }).join('');
+        return `<div class="compare-col"><div class="compare-food-name">${food.food}</div>${rows}</div>`;
+      };
+
+      document.getElementById('compareResults').innerHTML = `
+        <div class="compare-grid">
+          ${buildCol(d.food1, d.food2)}
+          ${buildCol(d.food2, d.food1)}
+        </div>
+        <div style="margin-top:12px;font-size:.8rem;color:var(--muted)">
+          <span style="color:var(--success)">■</span> Better &nbsp;
+          <span style="color:var(--danger)">■</span> Worse &nbsp;
+          (relative to the other food)
+        </div>`;
+    });
+}
+
+// ── EDA TABS ──────────────────────────────────────────────────────────────────
+function showEdaTab(name, btn) {
+  document.querySelectorAll('.eda-tab').forEach(t => t.style.display='none');
+  document.querySelectorAll('#page-eda .tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('eda-'+name).style.display='block';
+  btn.classList.add('active');
+}
+
+// ── ML RESULTS ────────────────────────────────────────────────────────────────
+let mlLoaded = false;
+function loadMLResults() {
+  fetch('/api/ml/results').then(r=>r.json()).then(d=>{
+    if (!d.ready) {
+      setTimeout(loadMLResults, 3000);
+      document.getElementById('regTable').innerHTML = '<div style="color:var(--muted);padding:16px">Models still training — please wait...</div>';
+      return;
+    }
+    mlResults = d;
+    renderMLResults(d);
+  });
+}
+
+function renderMLResults(d) {
+  // Regression table
+  document.getElementById('regTable').innerHTML = buildModelTable(d.regression, ['Model','RMSE','MAE','R²','CV R²'], d.best_reg);
+
+  // Regression charts
+  const regLabels = d.regression.map(r=>r.Model);
+  new Chart(document.getElementById('regChart'), {type:'bar', data:{
+    labels: regLabels, datasets:[{data:d.regression.map(r=>r['R²']),backgroundColor:COLORS,borderRadius:6}]
+  }, options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#9e9eb8',font:{size:9}}},y:{ticks:{color:'#9e9eb8'}}},responsive:true}});
+  
+  new Chart(document.getElementById('rmseChart'), {type:'bar', data:{
+    labels: regLabels, datasets:[{data:d.regression.map(r=>r.RMSE),backgroundColor:'#FF9800',borderRadius:6}]
+  }, options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#9e9eb8',font:{size:9}}},y:{ticks:{color:'#9e9eb8'}}},responsive:true}});
+
+  // Classification table
+  document.getElementById('clfTable').innerHTML = buildModelTable(d.classification, ['Model','Accuracy','CV Accuracy'], d.best_clf);
+
+  new Chart(document.getElementById('clfChart'), {type:'bar', data:{
+    labels: d.classification.map(r=>r.Model),
+    datasets:[{data:d.classification.map(r=>r.Accuracy),backgroundColor:COLORS,borderRadius:6}]
+  }, options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#9e9eb8',font:{size:9}}},y:{min:0,max:1,ticks:{color:'#9e9eb8'}}},responsive:true}});
+
+  // Cluster table
+  document.getElementById('clusterTable').innerHTML = buildClusterTable(d.clustering);
+
+  // Cluster radar
+  const clusterLabels = ['Caloric Value','Fat','Protein','Carbohydrates','Nutrition Density'];
+  const datasets = d.clustering.map((c,i) => ({
+    label: `Cluster ${c.Cluster}`, fill:true,
+    data: clusterLabels.map(k => parseFloat(c[k])||0),
+    backgroundColor: COLORS[i%8]+'30', borderColor: COLORS[i%8], pointBackgroundColor: COLORS[i%8]
+  }));
+  makeRadar('clusterRadar', clusterLabels, datasets);
+}
+
+function buildModelTable(data, cols, best) {
+  const header = cols.map(c=>`<th>${c}</th>`).join('');
+  const rows = data.map((r,i)=>{
+    const isBest = r.Model === best;
+    const cells = cols.map(c => {
+      const v = r[c];
+      if (c==='Model') return `<td><strong>${v}${isBest?' ⭐':''}</strong></td>`;
+      const num = parseFloat(v);
+      return `<td>${isNaN(num)?v:num.toFixed(4)}</td>`;
+    }).join('');
+    return `<tr style="${isBest?'background:rgba(33,150,243,.1)':''}">${cells}</tr>`;
+  }).join('');
+  return `<div style="overflow-x:auto"><table class="model-table"><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function buildClusterTable(data) {
+  const cols = ['Cluster','Caloric Value','Fat','Protein','Carbohydrates','Nutrition Density','Count'];
+  const header = cols.map(c=>`<th>${c}</th>`).join('');
+  const rows = data.map(r=>`<tr>${cols.map(c=>`<td>${typeof r[c]==='number'?r[c].toFixed(2):r[c]}</td>`).join('')}</tr>`).join('');
+  return `<div style="overflow-x:auto"><table class="model-table"><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ── MODEL TABS ────────────────────────────────────────────────────────────────
+function showModelTab(name, btn) {
+  ['reg','clf','cluster'].forEach(n=>{document.getElementById('model-'+n).style.display='none'});
+  document.querySelectorAll('#page-models .tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('model-'+name).style.display='block';
+  btn.classList.add('active');
+}
+
+// ── PLOTS GALLERY ─────────────────────────────────────────────────────────────
+function loadPlotsGallery() {
+  fetch('/api/plots').then(r=>r.json()).then(d=>{
+    const captions = {
+      '01':'Macronutrient Distributions','02':'Correlation Heatmap','03':'Group Boxplots',
+      '04':'Caloric Categories','05':'Nutrition Density Ranking','06':'Vitamin & Mineral Bars',
+      '07':'Protein vs Calories','08':'Fat Breakdown','09':'Macro Pair Plot',
+      '10':'Regression Model Comparison','11':'Actual vs Predicted','12':'Residuals',
+      '13':'Feature Importance (Regression)','14':'Classification Comparison',
+      '15':'Confusion Matrix','16':'Feature Importance (Classification)',
+      '17':'Elbow & Silhouette','18':'PCA Cluster Map'
+    };
+    document.getElementById('plotsGrid').innerHTML = d.plots.map(p=>{
+      const num = p.split('_')[0];
+      const cap = captions[num] || p.replace('.png','').replace(/_/g,' ');
+      return `<div class="plot-card" onclick="openImg('/outputs/plots/${p}')">
+        <img src="/outputs/plots/${p}" alt="${cap}" loading="lazy"/>
+        <div class="plot-caption">${num}. ${cap}</div>
+      </div>`;
+    }).join('');
+  });
+}
+
+function openImg(src) {
+  document.getElementById('imgModalSrc').src = src;
+  document.getElementById('imgModal').classList.add('open');
+}
+
+// Close autocompletes on outside click
+document.addEventListener('click', e=>{
+  if (!e.target.closest('.search-box')) {
+    document.querySelectorAll('.autocomplete-list').forEach(l=>l.style.display='none');
+  }
+});
+</script>
+</body>
+</html>
